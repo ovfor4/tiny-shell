@@ -182,6 +182,8 @@ void eval(char *cmdline)
         argv[i] = &arg[i][0];
     }
     parseline(cmdline, argv);
+
+    if (argv[0] == NULL) return;
     
     if (builtin_cmd(argv[0])) 
     {   
@@ -191,7 +193,28 @@ void eval(char *cmdline)
         else return;
     }
 
-    
+    sigset_t mask_sigchld, prev_mask, mask_all;
+    sigaddset(&mask_sigchld, SIGCHLD);
+    sigfillset(&mask_all);
+
+    sigprocmask(SIG_BLOCK, &mask_sigchld, &prev_mask);
+
+    pid_t pid = fork();
+    if (pid == 0) // child
+    {
+        execve(argv[0], argv, NULL);
+        char msg[] = "log: command not found\n";
+        write(STDOUT_FILENO, msg, strlen(msg));
+        exit(-1); // if no command is found
+    }
+
+    // parent
+    job_t job;
+    sigprocmask(SIG_SETMASK, &mask_all, NULL);
+    addjob(&job, pid, FG, cmdline);
+    sigprocmask(SIG_SETMASK, &prev_mask, NULL);
+
+
 
     return;
 }
@@ -295,6 +318,21 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
+    constexpr int numlen = 20;
+    int errno_backup = errno;
+    int status, pid;
+    char msg[] = "sig chld, pid: ", num[numlen];
+    write(STDOUT_FILENO, msg, strlen(msg));
+
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
+    {
+        // deletejob(NULL, pid);
+        sprintf(num, "%d\n", pid);
+        write(STDOUT_FILENO, num, strlen(num));
+    }
+
+
+    errno = errno_backup;
     return;
 }
 
