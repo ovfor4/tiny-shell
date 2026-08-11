@@ -12,6 +12,11 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <iostream>
+#include <vector>
+#include <string>
+
+using namespace std;
 
 /* Misc manifest constants */
 #define MAXLINE    1024   /* max line size */
@@ -56,7 +61,7 @@ struct job_t jobs[MAXJOBS]; /* The job list */
 
 /* Here are the functions that you will implement */
 void eval(char *cmdline);
-int builtin_cmd(char **argv);
+int builtin_cmd(char *c_str);
 void do_bgfg(char **argv);
 void waitfg(pid_t pid);
 
@@ -84,6 +89,11 @@ void unix_error(char *msg);
 void app_error(char *msg);
 typedef void handler_t(int);
 handler_t *Signal(int signum, handler_t *handler);
+
+// built-in commands
+void builtin_command_quit();
+
+vector<string> builtin_cmd_list = {"QUIT", "WAIT", "quit"};
 
 /*
  * main - The shell's main routine 
@@ -165,6 +175,24 @@ int main(int argc, char **argv)
 */
 void eval(char *cmdline) 
 {
+    char arg[MAXARGS][MAXLINE];
+    char *argv[MAXARGS];
+    for (int i = 0 ; i < MAXARGS; i++)
+    {
+        argv[i] = &arg[i][0];
+    }
+    parseline(cmdline, argv);
+    
+    if (builtin_cmd(argv[0])) 
+    {   
+        // TODO
+        cout << "built-in" << endl;
+        if (strcmp(argv[0], "quit") == 0) builtin_command_quit();
+        else return;
+    }
+
+    
+
     return;
 }
 
@@ -229,8 +257,12 @@ int parseline(const char *cmdline, char **argv)
  * builtin_cmd - If the user has typed a built-in command then execute
  *    it immediately.  
  */
-int builtin_cmd(char **argv) 
+int builtin_cmd(char *c_str) 
 {
+    string s(c_str);
+    for (auto c : builtin_cmd_list)
+        if (c == s)
+            return 1;
     return 0;     /* not a builtin command */
 }
 
@@ -506,4 +538,7 @@ void sigquit_handler(int sig)
 }
 
 
-
+void builtin_command_quit()
+{
+    exit(0);
+}
