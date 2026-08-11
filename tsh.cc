@@ -93,7 +93,7 @@ handler_t *Signal(int signum, handler_t *handler);
 // built-in commands
 void builtin_command_quit();
 
-vector<string> builtin_cmd_list = {"QUIT", "WAIT", "quit"};
+vector<string> builtin_cmd_list = {"quit"};
 
 /*
  * main - The shell's main routine 
