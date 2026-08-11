@@ -95,7 +95,7 @@ handler_t *Signal(int signum, handler_t *handler);
 // built-in commands
 void builtin_command_quit();
 
-vector<string> builtin_cmd_list = {"quit"};
+vector<string> builtin_cmd_list = {"quit", "fg", "bg", "jobs"};
 
 /*
  * main - The shell's main routine 
@@ -192,7 +192,8 @@ void eval(char *cmdline)
         // TODO
         cout << "built-in" << endl;
         if (strcmp(argv[0], "quit") == 0) builtin_command_quit();
-        else return;
+        else if (strcmp(argv[0], "jobs") == 0) listjobs(jobs);
+        return;
     }
 
     sigset_t mask_sigchld, prev_mask, mask_all;
@@ -211,9 +212,8 @@ void eval(char *cmdline)
     }
 
     // parent
-    job_t job;
     sigprocmask(SIG_SETMASK, &mask_all, NULL);
-    addjob(&job, pid, FG, cmdline);
+    addjob(jobs, pid, FG, cmdline);
     sigprocmask(SIG_SETMASK, &prev_mask, NULL);
 
 
@@ -327,7 +327,7 @@ void sigchld_handler(int sig)
 
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
     {
-        deletejob(NULL, pid);
+        deletejob(jobs, pid);
         atomic_print(pid);
     }
 
