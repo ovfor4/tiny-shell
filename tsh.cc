@@ -15,8 +15,10 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include "util.h"
 
 using namespace std;
+using ov4::atomic_print;
 
 /* Misc manifest constants */
 #define MAXLINE    1024   /* max line size */
@@ -318,17 +320,15 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
-    constexpr int numlen = 20;
     int errno_backup = errno;
     int status, pid;
-    char msg[] = "sig chld, pid: ", num[numlen];
+    char msg[] = "sig chld, pid: ";
     write(STDOUT_FILENO, msg, strlen(msg));
 
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
     {
-        // deletejob(NULL, pid);
-        sprintf(num, "%d\n", pid);
-        write(STDOUT_FILENO, num, strlen(num));
+        deletejob(NULL, pid);
+        atomic_print(pid);
     }
 
 

@@ -13,6 +13,11 @@
 
 namespace ov4 {
 
+void atomic_print(char *s);
+void atomic_print(int x);
+void reverse(char str[], int length);
+char* itoa(int num, char* str, int base);
+
 const int DECIMAL = 10;
 const int LENGTH = 20;
 
