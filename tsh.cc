@@ -65,7 +65,7 @@ struct job_t jobs[MAXJOBS]; /* The job list */
 void eval(char *cmdline);
 int builtin_cmd(char *c_str);
 void do_bgfg(char **argv);
-void waitfg(sigset_t prev);
+void waitfg(pid_t pid);
 
 void sigchld_handler(int sig);
 void sigtstp_handler(int sig);
@@ -233,7 +233,8 @@ void eval(char *cmdline)
         // unblock all expect SIGCHILD
         sigprocmask(SIG_SETMASK, &prev_all, NULL);
         // we still leave SIGCHLD to be unblocked within waitfg()
-        waitfg(prev);
+        // this pid is USELESS!!!
+        waitfg(0);
         // and then unblock SIGCHLD
         sigprocmask(SIG_SETMASK, &prev, NULL);
     }
@@ -332,8 +333,13 @@ void do_bgfg(char **argv)
 /* 
  * waitfg - Block until process pid is no longer the foreground process
  */
-void waitfg(sigset_t prev)
+void waitfg(pid_t pid)
 {
+    sigset_t prev;
+    // get current blocked signals
+    sigprocmask(0, NULL, &prev); 
+    // remove SIGCHILD
+    sigdelset(&prev, SIGCHLD);
     clog << "waiting for pid "<< fgpid(jobs) << endl;
     while (fgpid(jobs) != 0)
         sigsuspend(&prev);
