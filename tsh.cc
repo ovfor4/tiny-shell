@@ -242,6 +242,7 @@ void eval(char *cmdline)
         addjob(jobs, pid, BG, cmdline);
         // unblock to oldest
         sigprocmask(SIG_SETMASK, &prev, NULL);
+        cout << "[" << pid2jid(pid) << "] (" << pid << ") " << cmdline << endl;
     }
 
     
