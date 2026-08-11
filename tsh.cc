@@ -65,7 +65,7 @@ struct job_t jobs[MAXJOBS]; /* The job list */
 void eval(char *cmdline);
 int builtin_cmd(char *c_str);
 void do_bgfg(char **argv);
-void waitfg(pid_t pid);
+void waitfg(sigset_t prev);
 
 void sigchld_handler(int sig);
 void sigtstp_handler(int sig);
@@ -183,7 +183,7 @@ void eval(char *cmdline)
     {
         argv[i] = &arg[i][0];
     }
-    parseline(cmdline, argv);
+    int ground = parseline(cmdline, argv);
 
     if (argv[0] == NULL) return;
     
@@ -196,26 +196,55 @@ void eval(char *cmdline)
         return;
     }
 
-    sigset_t mask_sigchld, prev_mask, mask_all;
-    sigaddset(&mask_sigchld, SIGCHLD);
+    sigset_t mask_sigchld, mask_all, prev, prev_all;
+    sigemptyset(&mask_sigchld);
     sigfillset(&mask_all);
+    sigaddset(&mask_sigchld, SIGCHLD);
 
-    sigprocmask(SIG_BLOCK, &mask_sigchld, &prev_mask);
+    // block SIGCHLD
+    sigprocmask(SIG_BLOCK, &mask_sigchld, &prev);
 
     pid_t pid = fork();
     if (pid == 0) // child
     {
+        sigprocmask(SIG_UNBLOCK, &mask_sigchld, NULL);
+        pid = getpid();
+        setpgid(pid, pid);
+        
         execve(argv[0], argv, NULL);
-        char msg[] = "log: command not found\n";
-        write(STDOUT_FILENO, msg, strlen(msg));
+
+        atomic_print("log: command not found\n");
         exit(-1); // if no command is found
     }
 
     // parent
-    sigprocmask(SIG_SETMASK, &mask_all, NULL);
-    addjob(jobs, pid, FG, cmdline);
-    sigprocmask(SIG_SETMASK, &prev_mask, NULL);
 
+    // mask_sigchld = only SIGCHLD
+    // mask_all = all signals
+    // prev = oldest
+    // prev_all = oldest but with SIGCHLD blocked
+
+    // block all to add jobs
+    sigprocmask(SIG_SETMASK, &mask_all, &prev_all);
+
+    if (!ground)  // foreground
+    {   
+        addjob(jobs, pid, FG, cmdline); 
+        // unblock all expect SIGCHILD
+        sigprocmask(SIG_SETMASK, &prev_all, NULL);
+        // we still leave SIGCHLD to be unblocked within waitfg()
+        waitfg(prev);
+        // and then unblock SIGCHLD
+        sigprocmask(SIG_SETMASK, &prev, NULL);
+    }
+    else // background
+    {
+        addjob(jobs, pid, BG, cmdline);
+        // unblock to oldest
+        sigprocmask(SIG_SETMASK, &prev, NULL);
+    }
+
+    
 
 
     return;
@@ -302,8 +331,12 @@ void do_bgfg(char **argv)
 /* 
  * waitfg - Block until process pid is no longer the foreground process
  */
-void waitfg(pid_t pid)
+void waitfg(sigset_t prev)
 {
+    clog << "waiting for pid "<< fgpid(jobs) << endl;
+    while (fgpid(jobs) != 0)
+        sigsuspend(&prev);
+    clog << "finished fg " << fgpid(jobs) << endl;
     return;
 }
 
