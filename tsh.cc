@@ -96,6 +96,8 @@ handler_t *Signal(int signum, handler_t *handler);
 // built-in commands
 void builtin_command_quit();
 
+inline int block_all(sigset_t *prev);
+
 vector<string> builtin_cmd_list = {"quit", "fg", "bg", "jobs"};
 
 /*
@@ -194,6 +196,9 @@ void eval(char *cmdline)
         cout << "built-in" << endl;
         if (strcmp(argv[0], "quit") == 0) builtin_command_quit();
         else if (strcmp(argv[0], "jobs") == 0) listjobs(jobs);
+        else if (strcmp(argv[0], "fg") == 0) do_bgfg(argv);
+        else if (strcmp(argv[0], "bg") == 0) do_bgfg(argv);
+        else cerr << "built-in but not supported" << endl;
         return;
     }
 
@@ -327,6 +332,29 @@ int builtin_cmd(char *c_str)
  */
 void do_bgfg(char **argv) 
 {
+    if (strcmp(argv[0], "fg") == 0)
+    {
+        LOG << "fg" << endl;
+        int jid = atoi(argv[1]);
+        sigset_t prev;
+        block_all(&prev);
+        job_t *j = getjobjid(jobs, jid);
+        j->state = FG;
+        kill(-(j->pid), SIGCONT);
+        sigprocmask(SIG_SETMASK, &prev, NULL);
+        waitfg(j->pid);
+    } else if (strcmp(argv[0], "bg") == 0)
+    {
+        LOG << "bg" << endl;
+        int jid = atoi(argv[1]);
+        sigset_t prev;
+        block_all(&prev);
+        job_t *j = getjobjid(jobs, jid);
+        j->state = BG;
+        kill(-(j->pid), SIGCONT);
+        sigprocmask(SIG_SETMASK, &prev, NULL);
+    } else 
+        cerr << "not fg/bg" << endl;
     return;
 }
 
@@ -654,4 +682,11 @@ bool job_suspend(struct job_t *jobs, pid_t pid) {
         return true;
     }
     return false;
+}
+
+inline int block_all(sigset_t *prev)
+{
+    sigset_t set;
+    sigfillset(&set);
+    return sigprocmask(SIG_SETMASK, &set, prev);
 }

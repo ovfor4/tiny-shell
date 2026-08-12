@@ -22,8 +22,9 @@ void atomic_print(int x);
 void reverse(char str[], int length);
 char* itoa(int num, char* str, int base);
 
-constexpr bool GLOBAL_DEBUG = false;
-bool DEBUG = false; // verbose mode
+constexpr bool GLOBAL_DEBUG = true;
+bool DEBUG = true; // verbose mode, can be enabled on demand using something like -v
+struct LogVoidify { void operator&(std::ostream&) const {} };
 
 const int DECIMAL = 10;
 const int LENGTH = 20;
