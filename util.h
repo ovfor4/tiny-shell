@@ -13,6 +13,8 @@
 #include <vector>
 #include <string>
 
+#define LOG !(ov4::GLOBAL_DEBUG && ov4::DEBUG) ? (void)0 : ov4::LogVoidify() & std::clog
+
 namespace ov4 {
 
 void atomic_print(char *s);
