@@ -22,6 +22,9 @@ void atomic_print(int x);
 void reverse(char str[], int length);
 char* itoa(int num, char* str, int base);
 
+constexpr bool GLOBAL_DEBUG = false;
+bool DEBUG = false; // verbose mode
+
 const int DECIMAL = 10;
 const int LENGTH = 20;
 
