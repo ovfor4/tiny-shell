@@ -11,7 +11,7 @@ CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wno-write-strings -O2
 CC = gcc
 CFLAGS = -Wall -O2
-FILES = $(TSH) ./myspin ./mysplit ./mystop ./myint
+FILES = $(TSH) ./myspin ./mysplit ./mystop ./myint ./output
 
 all: $(FILES)
 
