@@ -85,6 +85,7 @@ struct job_t *getjobpid(struct job_t *jobs, pid_t pid);
 struct job_t *getjobjid(struct job_t *jobs, int jid); 
 int pid2jid(pid_t pid); 
 void listjobs(struct job_t *jobs);
+bool job_suspend(struct job_t *jobs, pid_t pid);
 
 void usage(void);
 void unix_error(char *msg);
@@ -233,8 +234,7 @@ void eval(char *cmdline)
         // unblock all expect SIGCHILD
         sigprocmask(SIG_SETMASK, &prev_all, NULL);
         // we still leave SIGCHLD to be unblocked within waitfg()
-        // this pid is USELESS!!!
-        waitfg(0);
+        waitfg(pid);
         // and then unblock SIGCHLD
         sigprocmask(SIG_SETMASK, &prev, NULL);
     }
@@ -341,9 +341,14 @@ void waitfg(pid_t pid)
     // remove SIGCHILD
     sigdelset(&prev, SIGCHLD);
     clog << "waiting for pid "<< fgpid(jobs) << endl;
+    job_t *j = getjobpid(jobs, pid);
     while (fgpid(jobs) != 0)
         sigsuspend(&prev);
-    clog << "finished fg " << fgpid(jobs) << endl;
+    clog << "finished fg " << endl;
+    if ((j->state == ST))
+    {
+        cout << "[" << j->jid << "] (" << pid << ") Stopped " << j->cmdline << endl; 
+    }
     return;
 }
 
@@ -362,11 +367,13 @@ void sigchld_handler(int sig)
 {
     int errno_backup = errno;
     int status, pid;
-    char msg[] = "sig chld, pid: ";
-    write(STDOUT_FILENO, msg, strlen(msg));
+    atomic_print("SIGCHLD\n");
 
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
     {
+        atomic_print("pid: ");
+        atomic_print(pid);
+        atomic_print("\n");
         deletejob(jobs, pid);
         atomic_print(pid);
     }
@@ -383,6 +390,11 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
+    int pid = fgpid(jobs);
+    if (pid != 0)
+    {
+        kill(-pid, SIGINT);
+    }
     return;
 }
 
@@ -393,6 +405,16 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
+    int pid = fgpid(jobs);
+    if (pid != 0)
+    {
+        kill(-pid, SIGTSTP);
+        sigset_t mask_all, prev;
+        sigfillset(&mask_all);
+        sigprocmask(SIG_SETMASK, &mask_all, &prev);
+        job_suspend(jobs, pid);
+        sigprocmask(SIG_SETMASK, &prev, NULL);
+    }
     return;
 }
 
@@ -619,4 +641,17 @@ void sigquit_handler(int sig)
 void builtin_command_quit()
 {
     exit(0);
+}
+
+// return true if suspended, otherwise false
+bool job_suspend(struct job_t *jobs, pid_t pid) {
+    int i;
+
+    for (i = 0; i < MAXJOBS; i++)
+	if (jobs[i].pid == pid)
+	{
+        jobs[i].state = ST;
+        return true;
+    }
+    return false;
 }
