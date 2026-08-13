@@ -122,6 +122,7 @@ int main(int argc, char **argv)
             usage();
 	    break;
         case 'v':             /* emit additional diagnostic info */
+            ov4::DEBUG = true;
             verbose = 1;
 	    break;
         case 'p':             /* don't print a prompt */
@@ -203,21 +204,16 @@ void eval(char *cmdline)
         return;
     }
 
-    sigset_t mask_sigchld, mask_all, prev, prev_all;
-    sigemptyset(&mask_sigchld);
-    sigfillset(&mask_all);
-    sigaddset(&mask_sigchld, SIGCHLD);
-
-    // block SIGCHLD
-    sigprocmask(SIG_BLOCK, &mask_sigchld, &prev);
+    sigset_t prev;
+    block_all(&prev);
 
     pid_t pid = fork();
     if (pid == 0) // child
     {
-        sigprocmask(SIG_UNBLOCK, &mask_sigchld, NULL);
+        sigprocmask(SIG_SETMASK, &prev, NULL);
         setpgid(0, 0);
         
-        execve(argv[0], argv, NULL);
+        execve(argv[0], argv, environ);
 
         atomic_print(cmdline, true);
         atomic_print(": Command not found\n");
@@ -226,33 +222,22 @@ void eval(char *cmdline)
 
     // parent
 
-    // mask_sigchld = only SIGCHLD
-    // mask_all = all signals
-    // prev = oldest
-    // prev_all = oldest but with SIGCHLD blocked
-
-    // block all to add jobs
-    sigprocmask(SIG_SETMASK, &mask_all, &prev_all);
-
     if (!ground)  // foreground
     {   
         addjob(jobs, pid, FG, cmdline); 
-        // unblock all expect SIGCHILD
-        sigprocmask(SIG_SETMASK, &prev_all, NULL);
-        // we still leave SIGCHLD to be unblocked within waitfg()
+        sigset_t prev_with_sigchld_blocked = prev;
+        sigaddset(&prev_with_sigchld_blocked, SIGCHLD);
+        sigprocmask(SIG_SETMASK, &prev_with_sigchld_blocked, NULL);
         waitfg(pid);
-        // and then unblock SIGCHLD
         sigprocmask(SIG_SETMASK, &prev, NULL);
     }
     else // background
     {
         addjob(jobs, pid, BG, cmdline);
-        // unblock to oldest
         sigprocmask(SIG_SETMASK, &prev, NULL);
         cout << "[" << pid2jid(pid) << "] (" << pid << ") " << cmdline;
     }
 
-    
 
 
     return;
@@ -401,14 +386,13 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
-    sigset_t prev;
+    sigset_t prev_with_sigchld_unblocked;
     // get current blocked signals
-    sigprocmask(0, NULL, &prev); 
-    // remove SIGCHILD
-    sigdelset(&prev, SIGCHLD);
+    sigprocmask(0, NULL, &prev_with_sigchld_unblocked); 
+    sigdelset(&prev_with_sigchld_unblocked, SIGCHLD);
     LOG << "waiting for pid "<< fgpid(jobs) << endl;
     while (fgpid(jobs) != 0)
-        sigsuspend(&prev);
+        sigsuspend(&prev_with_sigchld_unblocked);
     LOG << "finished fg " << endl;
     return;
 }
@@ -440,7 +424,7 @@ void sigchld_handler(int sig)
             atomic_print("] (");
             atomic_print(pid);
             atomic_print(") ");
-            if (WTERMSIG(status) == SIGINT)
+            if (!WIFSTOPPED(status) && WTERMSIG(status) == SIGINT)
                 atomic_print("terminated");
             else if (WIFSTOPPED(status))
                 atomic_print("stopped");
@@ -448,7 +432,7 @@ void sigchld_handler(int sig)
                 atomic_print("idk");
             atomic_print(" by signal ");
             if (WIFSTOPPED(status))
-                atomic_print(20);
+                atomic_print(WSTOPSIG(status));
             else
                 atomic_print(WTERMSIG(status));
             atomic_print("\n");
@@ -463,14 +447,15 @@ void sigchld_handler(int sig)
             block_all(&prev);
             job_suspend(jobs, pid);
             sigprocmask(SIG_SETMASK, &prev, nullptr);
-            return;
         }
-        atomic_debug("terminated pid: ");
-        atomic_debug(pid);
-        sigset_t prev;
-        block_all(&prev);
-        deletejob(jobs, pid);
-        sigprocmask(SIG_SETMASK, &prev, nullptr);
+        else {
+            atomic_debug("terminated pid: ");
+            atomic_debug(pid);
+            sigset_t prev;
+            block_all(&prev);
+            deletejob(jobs, pid);
+            sigprocmask(SIG_SETMASK, &prev, nullptr);
+        }
     }
 
 
@@ -494,7 +479,7 @@ void sigint_handler(int sig)
         kill(-pid, SIGINT);
     }
 
-    
+
     errno = errno_backup;
     return;
 }
