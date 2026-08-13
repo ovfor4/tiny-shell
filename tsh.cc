@@ -485,11 +485,17 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
+    int errno_backup = errno;
+
+
     int pid = fgpid(jobs);
     if (pid != 0)
     {
         kill(-pid, SIGINT);
     }
+
+    
+    errno = errno_backup;
     return;
 }
 
@@ -500,11 +506,17 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
+    int errno_backup = errno;
+
+
     int pid = fgpid(jobs);
     if (pid != 0)
     {
         kill(-pid, SIGTSTP);
     }
+
+
+    errno = errno_backup;
     return;
 }
 
