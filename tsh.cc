@@ -19,6 +19,7 @@
 
 using namespace std;
 using ov4::atomic_print;
+using ov4::isnum;
 
 /* Misc manifest constants */
 #define MAXLINE    1024   /* max line size */
@@ -339,11 +340,30 @@ void do_bgfg(char **argv)
         sigset_t prev;
         if (argv[1][0] == '%') // jid provided
         {
-            x = atoi(argv[1]); // eat %
+            if (!isnum(&argv[1][1]))
+            {
+                cerr << ((strcmp(argv[0], "fg") == 0) ? "fg" : "bg") << ": argument must be a PID or %jobid" << endl;
+                return;
+            }
+            x = atoi(&argv[1][1]); // eat %
             j = getjobjid(jobs, x);
+            if (j == nullptr)
+            {
+                cerr << argv[1] << ": No such job" << endl;
+            }
         } else { // pid
-            x = atoi(argv[0]);
+            if (!isnum(&argv[1][1]))
+            {
+                cerr << ((strcmp(argv[0], "fg") == 0) ? "fg" : "bg") << ": argument must be a PID or %jobid" << endl;
+                return;
+            }
+            x = atoi(&argv[1][0]);
             j = getjobpid(jobs, x);
+            if (j == nullptr)
+            {
+                cerr << argv[1] << ": No such process" << endl;
+                return;
+            }
         }
 
         block_all(&prev);

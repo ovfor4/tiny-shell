@@ -19,6 +19,7 @@ namespace ov4 {
 
 void atomic_print(char *s);
 void atomic_print(int x);
+bool isnum(char *s);
 void reverse(char str[], int length);
 char* itoa(int num, char* str, int base);
 
@@ -27,7 +28,7 @@ bool DEBUG = true; // verbose mode, can be enabled on demand using something lik
 struct LogVoidify { void operator&(std::ostream&) const {} };
 
 const int DECIMAL = 10;
-const int LENGTH = 20;
+const int LENGTH = 25;
 
 void atomic_print(char *s)
 {
@@ -52,6 +53,14 @@ void reverse(char str[], int length)
         end--;
         start++;
     }
+}
+
+bool isnum(char *s)
+{
+    for (int i = 0; s[i] != 0; i++)
+        if (!isdigit(s[i]))
+            return false;
+    return true;
 }
 
 
