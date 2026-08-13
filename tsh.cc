@@ -372,6 +372,7 @@ void do_bgfg(char **argv)
             }
         }
 
+
         block_all(&prev);
         if (strcmp(argv[0], "fg") == 0) // fg
         {
@@ -386,6 +387,9 @@ void do_bgfg(char **argv)
             j->state = BG;
             kill(-(j->pid), SIGCONT);
             sigprocmask(SIG_SETMASK, &prev, NULL);
+            // cmdline has nerd '\n' at the end
+            // so just flush
+            cout << "[" << j->jid << "] (" << j->pid << ") " << j->cmdline << flush;
         }
     }
     else 
@@ -403,17 +407,9 @@ void waitfg(pid_t pid)
     // remove SIGCHILD
     sigdelset(&prev, SIGCHLD);
     LOG << "waiting for pid "<< fgpid(jobs) << endl;
-    job_t *j = getjobpid(jobs, pid);
     while (fgpid(jobs) != 0)
         sigsuspend(&prev);
     LOG << "finished fg " << endl;
-    if ((j->state == ST))
-    {
-        cout << "Job [" << j->jid << "] (" << pid << ") stopped by signal 20" << endl; 
-    } else if (getjobpid(jobs, pid) == nullptr)
-    {
-        cout << "Job [" << j->jid << "] (" << pid << ") terminated by signal 2" << endl; 
-    }
     return;
 }
 
@@ -436,6 +432,28 @@ void sigchld_handler(int sig)
 
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0)
     {
+        if (WIFSIGNALED(status) | WIFSTOPPED(status))
+        {
+            int jid = pid2jid(pid);
+            atomic_print("Job [");
+            atomic_print(jid);
+            atomic_print("] (");
+            atomic_print(pid);
+            atomic_print(") ");
+            if (WTERMSIG(status) == SIGINT)
+                atomic_print("terminated");
+            else if (WIFSTOPPED(status))
+                atomic_print("stopped");
+            else 
+                atomic_print("idk");
+            atomic_print(" by signal ");
+            if (WIFSTOPPED(status))
+                atomic_print(20);
+            else
+                atomic_print(WTERMSIG(status));
+            atomic_print("\n");
+        } 
+
         if (WIFSTOPPED(status))
         {
             atomic_debug("suspended pid: ");
