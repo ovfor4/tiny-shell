@@ -17,13 +17,13 @@
 
 namespace ov4 {
 
-void atomic_print(char *s);
+void atomic_print(char*, bool);
 void atomic_print(int x);
-void atomic_debug(char *s);
-void atomic_debug(int x);
-bool isnum(char *s);
-void reverse(char str[], int length);
-char* itoa(int num, char* str, int base);
+void atomic_debug(char*, bool);
+void atomic_debug(int);
+bool isnum(char*);
+void reverse(char[], int);
+char *itoa(int, char*, int);
 
 constexpr bool GLOBAL_DEBUG = true;
 bool DEBUG = false; // verbose mode, can be enabled on demand using something like -v
@@ -32,8 +32,15 @@ struct LogVoidify { void operator&(std::ostream&) const {} };
 const int DECIMAL = 10;
 const int LENGTH = 25;
 
-void atomic_print(char *s)
+void atomic_print(char *s, bool ignore_wrap = false)
 {
+    if (ignore_wrap)
+        for (int i = 0; s[i] != 0; i++)
+            if (s[i] == '\n')
+            {
+                write(STDOUT_FILENO, s, i);
+                return;
+            }
     write(STDOUT_FILENO, s, strlen(s));
 }
 
@@ -57,9 +64,9 @@ void reverse(char str[], int length)
     }
 }
 
-void atomic_debug(char *s)
+void atomic_debug(char *s, bool ignore_wrap = false)
 {
-    if (DEBUG && GLOBAL_DEBUG) atomic_print(s);
+    if (DEBUG && GLOBAL_DEBUG) atomic_print(s, ignore_wrap);
 }
 
 void atomic_debug(int x)
@@ -76,7 +83,7 @@ bool isnum(char *s)
 }
 
 
-char* itoa(int num, char* str, int base)
+char *itoa(int num, char* str, int base)
 {
     int i = 0;
     bool isNegative = false;

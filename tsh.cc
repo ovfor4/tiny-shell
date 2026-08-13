@@ -215,12 +215,12 @@ void eval(char *cmdline)
     if (pid == 0) // child
     {
         sigprocmask(SIG_UNBLOCK, &mask_sigchld, NULL);
-        pid = getpid();
-        setpgid(pid, pid);
+        setpgid(0, 0);
         
         execve(argv[0], argv, NULL);
 
-        atomic_print("log: command not found\n");
+        atomic_print(cmdline, true);
+        atomic_print(": Command not found\n");
         exit(-1); // if no command is found
     }
 
@@ -409,7 +409,10 @@ void waitfg(pid_t pid)
     LOG << "finished fg " << endl;
     if ((j->state == ST))
     {
-        cout << "[" << j->jid << "] (" << pid << ") Stopped " << j->cmdline << endl; 
+        cout << "Job [" << j->jid << "] (" << pid << ") stopped by signal 20" << endl; 
+    } else if (getjobpid(jobs, pid) == nullptr)
+    {
+        cout << "Job [" << j->jid << "] (" << pid << ") terminated by signal 2" << endl; 
     }
     return;
 }
