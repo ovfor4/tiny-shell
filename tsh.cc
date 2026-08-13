@@ -367,7 +367,12 @@ void do_bgfg(char **argv)
             sigset_t prev_with_sigchld_blocked = prev;
             sigaddset(&prev_with_sigchld_blocked, SIGCHLD);
             sigprocmask(SIG_SETMASK, &prev_with_sigchld_blocked, NULL);
-            kill(-(j->pid), SIGCONT);
+            if (kill(-(j->pid), SIGCONT) < 0) 
+            {
+                cerr << "Cannot continue process " << j->pid;
+                sigprocmask(SIG_SETMASK, &prev, NULL);
+                return;
+            }
 
             waitfg(j->pid);
 
@@ -422,7 +427,7 @@ void sigchld_handler(int sig)
 
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0)
     {
-        if (WIFSIGNALED(status) | WIFSTOPPED(status))
+        if (WIFSIGNALED(status) || WIFSTOPPED(status))
         {
             int jid = pid2jid(pid);
             atomic_print("Job [");
