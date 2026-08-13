@@ -58,6 +58,9 @@ struct job_t {              /* The job struct */
     char cmdline[MAXLINE];  /* command line */
 };
 struct job_t jobs[MAXJOBS]; /* The job list */
+
+vector<string> builtin_cmd_list = {"quit", "fg", "bg", "jobs"};
+sigset_t BLOCK_HANDLER;
 /* End global variables */
 
 
@@ -98,15 +101,17 @@ handler_t *Signal(int signum, handler_t *handler);
 // built-in commands
 void builtin_command_quit();
 
-inline int block_all(sigset_t *prev);
+inline int block_all(sigset_t*);
+inline int block_handler(sigset_t*);
 
-vector<string> builtin_cmd_list = {"quit", "fg", "bg", "jobs"};
+void init();
 
 /*
  * main - The shell's main routine 
  */
 int main(int argc, char **argv) 
 {
+    init();
     char c;
     char cmdline[MAXLINE];
     int emit_prompt = 1; /* emit prompt (default) */
@@ -191,7 +196,7 @@ void eval(char *cmdline)
     }
     int ground = parseline(cmdline, argv);
 
-    if (argv[0] == NULL) return;
+    if (argv[0] == nullptr) return;
     
     if (builtin_cmd(argv[0])) 
     {   
@@ -210,7 +215,7 @@ void eval(char *cmdline)
     pid_t pid = fork();
     if (pid == 0) // child
     {
-        sigprocmask(SIG_SETMASK, &prev, NULL);
+        sigprocmask(SIG_SETMASK, &prev, nullptr);
         setpgid(0, 0);
         
         execve(argv[0], argv, environ);
@@ -422,6 +427,10 @@ void waitfg(pid_t pid)
 void sigchld_handler(int sig) 
 {
     int errno_backup = errno;
+
+    sigset_t prev;
+    block_handler(&prev);
+
     int status, pid;
     atomic_debug("SIGCHLD\n");
 
@@ -454,21 +463,22 @@ void sigchld_handler(int sig)
             atomic_debug("suspended pid: ");
             atomic_debug(pid);
             atomic_debug("\n");
-            sigset_t prev;
-            block_all(&prev);
+            sigset_t prev_inner;
+            block_all(&prev_inner);
             job_suspend(jobs, pid);
-            sigprocmask(SIG_SETMASK, &prev, nullptr);
+            sigprocmask(SIG_SETMASK, &prev_inner, nullptr);
         }
         else {
             atomic_debug("terminated pid: ");
             atomic_debug(pid);
-            sigset_t prev;
-            block_all(&prev);
+            sigset_t prev_inner;
+            block_all(&prev_inner);
             deletejob(jobs, pid);
-            sigprocmask(SIG_SETMASK, &prev, nullptr);
+            sigprocmask(SIG_SETMASK, &prev_inner, nullptr);
         }
     }
 
+    sigprocmask(SIG_SETMASK, &prev, nullptr);
 
     errno = errno_backup;
     return;
@@ -483,6 +493,8 @@ void sigint_handler(int sig)
 {
     int errno_backup = errno;
 
+    sigset_t prev;
+    block_handler(&prev);
 
     int pid = fgpid(jobs);
     if (pid != 0)
@@ -490,6 +502,7 @@ void sigint_handler(int sig)
         kill(-pid, SIGINT);
     }
 
+    sigprocmask(SIG_SETMASK, &prev, nullptr);
 
     errno = errno_backup;
     return;
@@ -504,6 +517,8 @@ void sigtstp_handler(int sig)
 {
     int errno_backup = errno;
 
+    sigset_t prev;
+    block_handler(&prev);
 
     int pid = fgpid(jobs);
     if (pid != 0)
@@ -511,6 +526,7 @@ void sigtstp_handler(int sig)
         kill(-pid, SIGTSTP);
     }
 
+    sigprocmask(SIG_SETMASK, &prev, nullptr);
 
     errno = errno_backup;
     return;
@@ -759,4 +775,17 @@ inline int block_all(sigset_t *prev)
     sigset_t set;
     sigfillset(&set);
     return sigprocmask(SIG_SETMASK, &set, prev);
+}
+
+inline int block_handler(sigset_t *prev)
+{
+    return sigprocmask(SIG_BLOCK, &BLOCK_HANDLER, prev);
+}
+
+void init()
+{
+    sigemptyset(&BLOCK_HANDLER);
+    sigaddset(&BLOCK_HANDLER, SIGINT);
+    sigaddset(&BLOCK_HANDLER, SIGTSTP);
+    sigaddset(&BLOCK_HANDLER, SIGCHLD);
 }
