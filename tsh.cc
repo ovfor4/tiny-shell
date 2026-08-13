@@ -332,30 +332,38 @@ int builtin_cmd(char *c_str)
  */
 void do_bgfg(char **argv) 
 {
-    if (strcmp(argv[0], "fg") == 0)
+    if ((strcmp(argv[0], "fg") == 0) || (strcmp(argv[0], "bg") == 0))
     {
-        LOG << "fg" << endl;
-        int jid = atoi(argv[1]);
+        int x;
+        job_t *j = nullptr;
         sigset_t prev;
+        if (argv[1][0] == '%') // jid provided
+        {
+            x = atoi(argv[1]); // eat %
+            j = getjobjid(jobs, x);
+        } else { // pid
+            x = atoi(argv[0]);
+            j = getjobpid(jobs, x);
+        }
+
         block_all(&prev);
-        job_t *j = getjobjid(jobs, jid);
-        j->state = FG;
-        kill(-(j->pid), SIGCONT);
-        sigprocmask(SIG_SETMASK, &prev, NULL);
-        waitfg(j->pid);
-    } else if (strcmp(argv[0], "bg") == 0)
-    {
-        LOG << "bg" << endl;
-        int jid = atoi(argv[1]);
-        sigset_t prev;
-        block_all(&prev);
-        job_t *j = getjobjid(jobs, jid);
-        j->state = BG;
-        kill(-(j->pid), SIGCONT);
-        sigprocmask(SIG_SETMASK, &prev, NULL);
-    } else 
+        if (strcmp(argv[0], "fg") == 0) // fg
+        {
+            LOG << "fg" << endl;
+            j->state = FG;
+            kill(-(j->pid), SIGCONT);
+            sigprocmask(SIG_SETMASK, &prev, NULL);
+            waitfg(j->pid);
+        } else // bg
+        {
+            LOG << "bg" << endl;
+            j->state = BG;
+            kill(-(j->pid), SIGCONT);
+            sigprocmask(SIG_SETMASK, &prev, NULL);
+        }
+    }
+    else 
         cerr << "not fg/bg" << endl;
-    return;
 }
 
 /* 
