@@ -363,9 +363,15 @@ void do_bgfg(char **argv)
         {
             LOG << "fg" << endl;
             j->state = FG;
+            
+            sigset_t prev_with_sigchld_blocked = prev;
+            sigaddset(&prev_with_sigchld_blocked, SIGCHLD);
+            sigprocmask(SIG_SETMASK, &prev_with_sigchld_blocked, NULL);
             kill(-(j->pid), SIGCONT);
-            sigprocmask(SIG_SETMASK, &prev, NULL);
+
             waitfg(j->pid);
+
+            sigprocmask(SIG_SETMASK, &prev, NULL);
         } else // bg
         {
             LOG << "bg" << endl;
@@ -388,7 +394,7 @@ void waitfg(pid_t pid)
 {
     sigset_t prev_with_sigchld_unblocked;
     // get current blocked signals
-    sigprocmask(0, NULL, &prev_with_sigchld_unblocked); 
+    sigprocmask(0, nullptr, &prev_with_sigchld_unblocked);
     sigdelset(&prev_with_sigchld_unblocked, SIGCHLD);
     LOG << "waiting for pid "<< fgpid(jobs) << endl;
     while (fgpid(jobs) != 0)
