@@ -19,6 +19,7 @@
 
 using namespace std;
 using ov4::atomic_print;
+using ov4::atomic_debug;
 using ov4::isnum;
 
 /* Misc manifest constants */
@@ -193,8 +194,7 @@ void eval(char *cmdline)
     
     if (builtin_cmd(argv[0])) 
     {   
-        // TODO
-        cout << "built-in" << endl;
+        LOG << "built-in" << endl;
         if (strcmp(argv[0], "quit") == 0) builtin_command_quit();
         else if (strcmp(argv[0], "jobs") == 0) listjobs(jobs);
         else if (strcmp(argv[0], "fg") == 0) do_bgfg(argv);
@@ -249,7 +249,7 @@ void eval(char *cmdline)
         addjob(jobs, pid, BG, cmdline);
         // unblock to oldest
         sigprocmask(SIG_SETMASK, &prev, NULL);
-        cout << "[" << pid2jid(pid) << "] (" << pid << ") " << cmdline << endl;
+        cout << "[" << pid2jid(pid) << "] (" << pid << ") " << cmdline;
     }
 
     
@@ -338,6 +338,11 @@ void do_bgfg(char **argv)
         int x;
         job_t *j = nullptr;
         sigset_t prev;
+        if (argv[1] == nullptr)
+        {
+            cerr << ((strcmp(argv[0], "fg") == 0) ? "fg" : "bg") << " command requires PID or %jobid argument" << endl;
+            return;
+        }
         if (argv[1][0] == '%') // jid provided
         {
             if (!isnum(&argv[1][1]))
@@ -350,9 +355,10 @@ void do_bgfg(char **argv)
             if (j == nullptr)
             {
                 cerr << argv[1] << ": No such job" << endl;
+                return;
             }
         } else { // pid
-            if (!isnum(&argv[1][1]))
+            if (!isnum(&argv[1][0]))
             {
                 cerr << ((strcmp(argv[0], "fg") == 0) ? "fg" : "bg") << ": argument must be a PID or %jobid" << endl;
                 return;
@@ -361,7 +367,7 @@ void do_bgfg(char **argv)
             j = getjobpid(jobs, x);
             if (j == nullptr)
             {
-                cerr << argv[1] << ": No such process" << endl;
+                cerr << "(" << argv[1] << "): No such process" << endl;
                 return;
             }
         }
@@ -396,11 +402,11 @@ void waitfg(pid_t pid)
     sigprocmask(0, NULL, &prev); 
     // remove SIGCHILD
     sigdelset(&prev, SIGCHLD);
-    clog << "waiting for pid "<< fgpid(jobs) << endl;
+    LOG << "waiting for pid "<< fgpid(jobs) << endl;
     job_t *j = getjobpid(jobs, pid);
     while (fgpid(jobs) != 0)
         sigsuspend(&prev);
-    clog << "finished fg " << endl;
+    LOG << "finished fg " << endl;
     if ((j->state == ST))
     {
         cout << "[" << j->jid << "] (" << pid << ") Stopped " << j->cmdline << endl; 
@@ -423,15 +429,27 @@ void sigchld_handler(int sig)
 {
     int errno_backup = errno;
     int status, pid;
-    atomic_print("SIGCHLD\n");
+    atomic_debug("SIGCHLD\n");
 
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
+    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0)
     {
-        atomic_print("pid: ");
-        atomic_print(pid);
-        atomic_print("\n");
+        if (WIFSTOPPED(status))
+        {
+            atomic_debug("suspended pid: ");
+            atomic_debug(pid);
+            atomic_debug("\n");
+            sigset_t prev;
+            block_all(&prev);
+            job_suspend(jobs, pid);
+            sigprocmask(SIG_SETMASK, &prev, nullptr);
+            return;
+        }
+        atomic_debug("terminated pid: ");
+        atomic_debug(pid);
+        sigset_t prev;
+        block_all(&prev);
         deletejob(jobs, pid);
-        atomic_print(pid);
+        sigprocmask(SIG_SETMASK, &prev, nullptr);
     }
 
 
@@ -465,11 +483,6 @@ void sigtstp_handler(int sig)
     if (pid != 0)
     {
         kill(-pid, SIGTSTP);
-        sigset_t mask_all, prev;
-        sigfillset(&mask_all);
-        sigprocmask(SIG_SETMASK, &mask_all, &prev);
-        job_suspend(jobs, pid);
-        sigprocmask(SIG_SETMASK, &prev, NULL);
     }
     return;
 }

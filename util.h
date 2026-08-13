@@ -19,12 +19,14 @@ namespace ov4 {
 
 void atomic_print(char *s);
 void atomic_print(int x);
+void atomic_debug(char *s);
+void atomic_debug(int x);
 bool isnum(char *s);
 void reverse(char str[], int length);
 char* itoa(int num, char* str, int base);
 
 constexpr bool GLOBAL_DEBUG = true;
-bool DEBUG = true; // verbose mode, can be enabled on demand using something like -v
+bool DEBUG = false; // verbose mode, can be enabled on demand using something like -v
 struct LogVoidify { void operator&(std::ostream&) const {} };
 
 const int DECIMAL = 10;
@@ -53,6 +55,16 @@ void reverse(char str[], int length)
         end--;
         start++;
     }
+}
+
+void atomic_debug(char *s)
+{
+    if (DEBUG && GLOBAL_DEBUG) atomic_print(s);
+}
+
+void atomic_debug(int x)
+{
+    if (DEBUG && GLOBAL_DEBUG) atomic_print(x);
 }
 
 bool isnum(char *s)
